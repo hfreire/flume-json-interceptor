@@ -25,12 +25,13 @@ import java.util.Set;
 import java.util.StringTokenizer;
 
 public class JsonInterceptor implements Interceptor {
-
-  private Set<String> extractProperties;
+  private Set<String> extractHeaderProperties;
+  private String extractBodyProperty;
   private ObjectMapper objectMapper;
 
-  public JsonInterceptor(Set<String> extractProperties) {
-    this.extractProperties = extractProperties;
+  public JsonInterceptor(Set<String> extractHeaderProperties, String extractBodyProperty) {
+    this.extractHeaderProperties = extractHeaderProperties;
+    this.extractBodyProperty = extractBodyProperty;
 
     this.objectMapper = new ObjectMapper();
   }
@@ -41,7 +42,7 @@ public class JsonInterceptor implements Interceptor {
 
   @Override
   public Event intercept(Event event) {
-    if (extractProperties.isEmpty()) {
+    if (extractHeaderProperties.isEmpty() && extractBodyProperty == null) {
       return event;
     }
 
@@ -51,8 +52,6 @@ public class JsonInterceptor implements Interceptor {
       return event;
     }
 
-    Map<String, String> headers = event.getHeaders();
-
     ObjectNode bodyNode;
     try {
       bodyNode = (ObjectNode) objectMapper.readTree(body);
@@ -60,58 +59,78 @@ public class JsonInterceptor implements Interceptor {
       return event;
     }
 
+    Map<String, String> headers = event.getHeaders();
+
     Iterator<Map.Entry<String, JsonNode>> iterator = bodyNode.getFields();
-    while(iterator.hasNext()) {
+    while (iterator.hasNext()) {
       Map.Entry<String, JsonNode> next = iterator.next();
       String propertyName = next.getKey();
 
-      if (!extractProperties.contains(propertyName)) {
-        continue;
-      }
+      if (extractHeaderProperties.contains(propertyName) || propertyName.equals(extractBodyProperty)) {
+        JsonNode value = next.getValue();
+        String propertyValue = valueToString(value);
 
-      JsonNode value = next.getValue();
-      String propertyValue = null;
-
-      if (value.isTextual()) {
-        propertyValue = next.getValue().getTextValue();
-      } else if (value.isNumber()) {
-        JsonParser.NumberType numberType = value.getNumberType();
-        switch (numberType) {
-          case INT:
-            propertyValue = String.valueOf(value.getIntValue());
-            break;
-          case LONG:
-            propertyValue = String.valueOf(value.getLongValue());
-            break;
-          case BIG_INTEGER:
-            propertyValue = String.valueOf(value.getBigIntegerValue());
-            break;
-          case FLOAT:
-            break;
-          case DOUBLE:
-            propertyValue = String.valueOf(value.getDoubleValue());
-            break;
-          case BIG_DECIMAL:
-            propertyValue = String.valueOf(value.getDecimalValue());
-            break;
+        if (propertyValue == null) {
+          continue;
         }
-      } else if (value.isBoolean()) {
-        propertyValue = String.valueOf(value.getBooleanValue());
+
+        if (extractHeaderProperties.contains(propertyName)) {
+          headers.put(propertyName, propertyValue);
+        }
+
+        if (propertyName.equals(extractBodyProperty)) {
+          event.setBody(propertyValue.getBytes());
+        }
       }
 
-      if (propertyValue == null) {
-        continue;
-      }
-
-      headers.put(propertyName, propertyValue);
     }
 
     return event;
   }
 
+  private String valueToString(JsonNode value) {
+    if (value == null) {
+      return null;
+    }
+
+    String valueString = null;
+
+    if (value.isTextual()) {
+      valueString = value.getTextValue();
+    } else if (value.isNumber()) {
+      JsonParser.NumberType numberType = value.getNumberType();
+      switch (numberType) {
+        case INT:
+          valueString = String.valueOf(value.getIntValue());
+          break;
+        case LONG:
+          valueString = String.valueOf(value.getLongValue());
+          break;
+        case BIG_INTEGER:
+          valueString = String.valueOf(value.getBigIntegerValue());
+          break;
+        case FLOAT:
+          break;
+        case DOUBLE:
+          valueString = String.valueOf(value.getDoubleValue());
+          break;
+        case BIG_DECIMAL:
+          valueString = String.valueOf(value.getDecimalValue());
+          break;
+      }
+    } else if (value.isBoolean()) {
+      valueString = String.valueOf(value.getBooleanValue());
+    }
+
+    if (valueString == null) {
+      valueString = value.toString();
+    }
+
+    return valueString;
+  }
+
   @Override
   public List<Event> intercept(List<Event> events) {
-
     List<Event> interceptedEvents = new ArrayList<>(events.size());
     for (Event event : events) {
       Event interceptedEvent = intercept(event);
@@ -126,21 +145,25 @@ public class JsonInterceptor implements Interceptor {
   }
 
   public static class Builder implements Interceptor.Builder {
-
-    private Set<String> extractProperties = new HashSet<>();
+    private Set<String> extractHeaderProperties = new HashSet<>();
+    private String extractBodyProperty = null;
 
     @Override
     public void configure(Context context) {
-      String extractProperties = context.getString("extractProperties");
-      StringTokenizer stringTokenizer = new StringTokenizer(extractProperties, ",");
-      while(stringTokenizer.hasMoreTokens()) {
-        this.extractProperties.add(stringTokenizer.nextToken());
+      String extractHeaderProperties = context.getString("extractHeaderProperties");
+      if (extractHeaderProperties != null) {
+        StringTokenizer stringTokenizer = new StringTokenizer(extractHeaderProperties.replace(" ", ""), ",");
+        while (stringTokenizer.hasMoreTokens()) {
+          this.extractHeaderProperties.add(stringTokenizer.nextToken());
+        }
       }
+
+      extractBodyProperty = context.getString("extractBodyProperty");
     }
 
     @Override
     public Interceptor build() {
-      return new JsonInterceptor(extractProperties);
+      return new JsonInterceptor(extractHeaderProperties, extractBodyProperty);
     }
   }
 }
