@@ -1,4 +1,4 @@
-# Apache Flume JSON Interceptor
+# An Apache Flume interceptor capable of extracting JSON properties
 [![][travis img]][travis]
 [![][release img]][release]
 [![][license img]][license]
