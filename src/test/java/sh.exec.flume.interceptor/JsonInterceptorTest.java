@@ -78,7 +78,6 @@ public class JsonInterceptorTest {
         .containsKeys("key1");
   }
 
-
   @Test
   public void shouldExtractMultipleHeaderProperties() {
     String body = "{\"key1\":\"value1\",\"key2\":false}";
