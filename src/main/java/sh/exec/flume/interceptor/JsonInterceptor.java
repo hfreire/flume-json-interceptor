@@ -18,7 +18,6 @@ import org.codehaus.jackson.node.ObjectNode;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -52,40 +51,63 @@ public class JsonInterceptor implements Interceptor {
       return event;
     }
 
-    ObjectNode bodyNode;
+    ObjectNode rootNode;
     try {
-      bodyNode = (ObjectNode) objectMapper.readTree(body);
+      rootNode = (ObjectNode) objectMapper.readTree(body);
     } catch (IOException e) {
       return event;
     }
 
-    Map<String, String> headers = event.getHeaders();
+    if (!extractHeaderProperties.isEmpty()) {
+      Map<String, String> headers = event.getHeaders();
 
-    Iterator<Map.Entry<String, JsonNode>> iterator = bodyNode.getFields();
-    while (iterator.hasNext()) {
-      Map.Entry<String, JsonNode> next = iterator.next();
-      String propertyName = next.getKey();
-
-      if (extractHeaderProperties.contains(propertyName) || propertyName.equals(extractBodyProperty)) {
-        JsonNode value = next.getValue();
-        String propertyValue = valueToString(value);
-
-        if (propertyValue == null) {
+      for (String fullPath : extractHeaderProperties) {
+        JsonNode node = getNodeByPath(rootNode, fullPath);
+        if (node == null || node.isMissingNode()) {
           continue;
         }
 
-        if (extractHeaderProperties.contains(propertyName)) {
-          headers.put(propertyName, propertyValue);
-        }
-
-        if (propertyName.equals(extractBodyProperty)) {
-          event.setBody(propertyValue.getBytes());
+        String propertyValue = valueToString(node);
+        if (propertyValue != null) {
+          String path;
+          if (fullPath.contains(".")) {
+            String[] paths = fullPath.split("\\.");
+            path = paths[paths.length - 1];
+          } else {
+            path = fullPath;
+          }
+          headers.put(path, propertyValue);
         }
       }
+    }
 
+    if (extractBodyProperty != null) {
+      JsonNode node = getNodeByPath(rootNode, extractBodyProperty);
+      if (node != null && !node.isMissingNode()) {
+        String propertyValue = valueToString(node);
+        event.setBody(propertyValue.getBytes());
+      }
     }
 
     return event;
+  }
+
+  private JsonNode getNodeByPath(JsonNode rootNode, String fullPath) {
+    if (rootNode == null) {
+      return null;
+    }
+
+    if (!fullPath.contains(".")) {
+      return rootNode.path(fullPath);
+    }
+
+    String[] paths = fullPath.split("\\.");
+    JsonNode node = rootNode;
+    for (String path : paths) {
+      node = node.path(path);
+    }
+
+    return node;
   }
 
   private String valueToString(JsonNode value) {

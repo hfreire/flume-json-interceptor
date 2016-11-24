@@ -151,4 +151,49 @@ public class JsonInterceptorTest {
 
     verify(event).setBody(eq("{\"key2\":2}".getBytes()));
   }
+
+  @Test
+  public void shouldExtractHeaderPropertyWithFullPath() {
+    String body = "{\"key1\":{\"key2\":{\"key3\":2}}}";
+    Map<String, String> headers = new HashMap<>();
+
+    JsonInterceptor.Builder builder = new JsonInterceptor.Builder();
+
+    when(context.getString(eq("extractHeaderProperties")))
+        .thenReturn("key1.key2.key3");
+
+    builder.configure(context);
+    Interceptor interceptor = builder.build();
+
+    when(event.getBody())
+        .thenReturn(body.getBytes());
+    when(event.getHeaders())
+        .thenReturn(headers);
+
+    interceptor.intercept(event);
+
+    assertThat(headers)
+        .containsKey("key3")
+        .containsValues("2");
+  }
+
+  @Test
+  public void shouldExtractBodyPropertyWithFullPath() {
+    String body = "{\"key1\":{\"key2\":{\"key3\":2}}}";
+
+    JsonInterceptor.Builder builder = new JsonInterceptor.Builder();
+
+    when(context.getString(eq("extractBodyProperty")))
+        .thenReturn("key1.key2");
+
+    builder.configure(context);
+    Interceptor interceptor = builder.build();
+
+    when(event.getBody())
+        .thenReturn(body.getBytes());
+
+    interceptor.intercept(event);
+
+    verify(event).setBody(eq("{\"key3\":2}".getBytes()));
+  }
 }
