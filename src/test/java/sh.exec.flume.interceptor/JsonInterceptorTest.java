@@ -15,11 +15,14 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -52,6 +55,32 @@ public class JsonInterceptorTest {
 
     verify(context).getString("extractHeaderProperties");
     verify(context).getString("extractBodyProperty");
+  }
+
+  @Test
+  public void shouldInterceptMultipleEvents() {
+    String body = "{\"key1\":\"value1\"}";
+
+    JsonInterceptor.Builder builder = new JsonInterceptor.Builder();
+
+    when(context.getString(eq("extractHeaderProperties")))
+        .thenReturn("key1");
+
+    builder.configure(context);
+    builder.build();
+
+    Interceptor interceptor = builder.build();
+
+    when(event.getBody())
+        .thenReturn(body.getBytes());
+
+    List<Event> eventList = new ArrayList<>();
+    eventList.add(event);
+    eventList.add(event);
+
+    interceptor.intercept(eventList);
+
+    verify(event, times(2)).getBody();
   }
 
   @Test
