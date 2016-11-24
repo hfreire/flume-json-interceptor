@@ -174,7 +174,7 @@ public class JsonInterceptor implements Interceptor {
     public void configure(Context context) {
       String extractHeaderProperties = context.getString("extractHeaderProperties");
       if (extractHeaderProperties != null) {
-        StringTokenizer stringTokenizer = new StringTokenizer(extractHeaderProperties.replace(" ", ""), ",");
+        StringTokenizer stringTokenizer = new StringTokenizer(extractHeaderProperties, " ");
         while (stringTokenizer.hasMoreTokens()) {
           this.extractHeaderProperties.add(stringTokenizer.nextToken());
         }

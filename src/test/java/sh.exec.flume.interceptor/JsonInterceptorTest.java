@@ -115,7 +115,7 @@ public class JsonInterceptorTest {
     JsonInterceptor.Builder builder = new JsonInterceptor.Builder();
 
     when(context.getString(eq("extractHeaderProperties")))
-        .thenReturn("key1,key2");
+        .thenReturn("key1 key2");
 
     builder.configure(context);
     Interceptor interceptor = builder.build();
